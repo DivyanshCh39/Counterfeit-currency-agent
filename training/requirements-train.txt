@@ -1,0 +1,19 @@
+# Separate from the main app's requirements.txt — only needed on the
+# machine where you train the model, not on the machine running the API.
+#
+# Install PyTorch first using the command for your platform from
+# https://pytorch.org/get-started/locally/ — e.g. for CPU-only on any OS:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# (leave this line out if you already installed a GPU/CUDA build)
+
+onnx==1.16.2            # required for ONNX export
+pyyaml==6.0.2            # only needed if using prepare_roboflow_data.py
+pillow==10.4.0
+tqdm==4.66.5
+imagehash==4.3.1        # required for prepare_roboflow_data.py --dedupe and dataset_audit.py
+
+# Optional — only used by dataset_audit.py's best-effort stock/specimen
+# watermark OCR scan. Silently skipped if not installed; everything else
+# (dedup/leakage detection) works without it.
+#   pytesseract==0.3.13
+# also requires the system tesseract-ocr binary if you install it.

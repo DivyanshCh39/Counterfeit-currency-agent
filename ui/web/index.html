@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Counterfeit Currency Identification Agent</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-border: #262b35;
+    --text: #e6e8eb;
+    --text-dim: #9aa1ac;
+    --accent: #5b8def;
+    --ok: #3ecf8e;
+    --warn: #e8a83e;
+    --fail: #e8593e;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    padding: 28px 24px 8px;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  header h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+    font-weight: 600;
+  }
+  header p {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin: 0;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 16px 24px 60px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .upload-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  input[type="file"] {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  #previewWrap {
+    margin-top: 14px;
+  }
+  #previewImg {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    display: none;
+  }
+  #status {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 10px;
+  }
+  #results { display: none; }
+  .verdict-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .verdict-genuine { background: rgba(62,207,142,0.15); color: var(--ok); }
+  .verdict-suspicious { background: rgba(232,89,62,0.15); color: var(--fail); }
+  .verdict-unclear { background: rgba(232,168,62,0.15); color: var(--warn); }
+
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .score-value { font-size: 26px; font-weight: 700; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    margin: 0 0 10px;
+  }
+  .feature-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .feature-bar-label { width: 160px; flex-shrink: 0; color: var(--text-dim); }
+  .feature-bar-track {
+    flex: 1;
+    height: 6px;
+    background: #262b35;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .feature-bar-fill { height: 100%; background: var(--accent); }
+  .feature-bar-value { width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  ul.reason-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  ul.reason-list li { margin-bottom: 4px; }
+
+  code.serial {
+    background: #0d0f13;
+    border: 1px solid var(--panel-border);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+  }
+
+  #annotatedImg {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    margin-top: 8px;
+  }
+
+  .flag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .flag-true { background: rgba(62,207,142,0.15); color: var(--ok); }
+  .flag-false { background: rgba(232,89,62,0.15); color: var(--fail); }
+
+  .disclaimer {
+    font-size: 12px;
+    color: var(--text-dim);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    background: rgba(91,141,239,0.08);
+    border-radius: 0 6px 6px 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Counterfeit Currency Identification Agent</h1>
+  <p>Prototype for academic demonstration only — not for legal-grade authentication.</p>
+</header>
+
+<main>
+  <section class="panel">
+    <h3>Upload a note image</h3>
+    <div class="upload-row">
+      <input type="file" id="fileInput" accept=".jpg,.jpeg,.png" />
+      <button id="analyzeBtn" disabled>Analyze Note</button>
+    </div>
+    <div id="previewWrap">
+      <img id="previewImg" alt="Preview" />
+    </div>
+    <div id="status"></div>
+  </section>
+
+  <section id="results">
+    <section class="panel">
+      <div class="score-row">
+        <div>
+          <span id="verdictBadge" class="verdict-badge">—</span>
+        </div>
+        <div style="text-align:right;">
+          <div class="score-value" id="overallScore">—</div>
+          <div style="font-size:12px;color:var(--text-dim);">overall score / 100</div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;">
+        <h3>Per-Feature Scores</h3>
+        <div id="featureBars"></div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <h3>Explanation</h3>
+        <ul class="reason-list" id="explanationList"></ul>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <section class="panel">
+        <h3>Denomination</h3>
+        <p id="denominationInfo" style="margin:0;"></p>
+
+        <h3 style="margin-top:18px;">Serial Number</h3>
+        <p style="margin:0 0 8px;"><code class="serial" id="serialText">—</code></p>
+        <div id="serialFlags"></div>
+        <ul class="reason-list" id="serialReasons"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>Microprint</h3>
+        <p id="microprintInfo" style="margin:0 0 8px;"></p>
+        <ul class="reason-list" id="microprintFlags"></ul>
+
+        <h3 style="margin-top:18px;">Security Thread</h3>
+        <p id="threadInfo" style="margin:0 0 8px;"></p>
+        <ul class="reason-list" id="threadFlags"></ul>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h3>Annotated Output (highlighted ROIs)</h3>
+      <img id="annotatedImg" alt="Annotated result" style="display:none;" />
+    </section>
+
+    <section class="panel">
+      <h3>Notes / Disclaimers</h3>
+      <div id="notesList"></div>
+    </section>
+  </section>
+</main>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const previewImg = document.getElementById('previewImg');
+const statusEl = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+
+let selectedFile = null;
+
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0] || null;
+  analyzeBtn.disabled = !selectedFile;
+  resultsEl.style.display = 'none';
+  statusEl.textContent = '';
+
+  if (selectedFile) {
+    const url = URL.createObjectURL(selectedFile);
+    previewImg.src = url;
+    previewImg.style.display = 'block';
+  } else {
+    previewImg.style.display = 'none';
+  }
+});
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  analyzeBtn.disabled = true;
+  statusEl.textContent = 'Running analysis pipeline...';
+  resultsEl.style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const response = await fetch('/analyze', { method: 'POST', body: formData });
+    const data = await response.json();
+
+    if (!response.ok) {
+      statusEl.textContent = 'Error: ' + (data.detail || response.statusText);
+      analyzeBtn.disabled = false;
+      return;
+    }
+
+    renderResult(data);
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = 'Request failed: ' + err.message;
+  } finally {
+    analyzeBtn.disabled = false;
+  }
+});
+
+function verdictClass(verdict) {
+  if (verdict === 'likely genuine') return 'verdict-genuine';
+  if (verdict === 'suspicious') return 'verdict-suspicious';
+  return 'verdict-unclear';
+}
+
+function flagPill(label, value) {
+  const cls = value ? 'flag-true' : 'flag-false';
+  const mark = value ? '✓' : '✕';
+  return `<span class="flag ${cls}">${mark} ${label}</span>`;
+}
+
+function renderResult(data) {
+  resultsEl.style.display = 'block';
+
+  const badge = document.getElementById('verdictBadge');
+  badge.textContent = data.verdict;
+  badge.className = 'verdict-badge ' + verdictClass(data.verdict);
+
+  document.getElementById('overallScore').textContent = data.overall_score.toFixed(1);
+
+  // feature bars
+  const barsEl = document.getElementById('featureBars');
+  barsEl.innerHTML = '';
+  const featureScores = data.feature_scores || {};
+  Object.keys(featureScores).forEach((key) => {
+    const val = featureScores[key]; // already on a 0-100 scale
+    const pct = Math.min(100, Math.max(0, Math.round(val)));
+    const label = key.replace(/_/g, ' ');
+    barsEl.innerHTML += `
+      <div class="feature-bar-row">
+        <div class="feature-bar-label">${label}</div>
+        <div class="feature-bar-track"><div class="feature-bar-fill" style="width:${pct}%;"></div></div>
+        <div class="feature-bar-value">${val.toFixed(1)}</div>
+      </div>`;
+  });
+
+  // explanations
+  const explEl = document.getElementById('explanationList');
+  explEl.innerHTML = (data.explanations || []).map(e => `<li>${e}</li>`).join('');
+
+  // denomination
+  const denom = data.denomination || {};
+  document.getElementById('denominationInfo').textContent =
+    `${denom.predicted_value || 'unknown'} (confidence ${(denom.confidence || 0).toFixed(2)}, method: ${denom.method || '—'})`;
+
+  // serial number
+  const checks = data.checks || {};
+  const serial = checks.serial_number || {};
+  document.getElementById('serialText').textContent = serial.serial_number || '(none detected)';
+
+  const flagsEl = document.getElementById('serialFlags');
+  const vf = serial.validation_flags || {};
+  flagsEl.innerHTML = Object.keys(vf).map(k => flagPill(k.replace('_valid', ''), vf[k])).join('');
+
+  document.getElementById('serialReasons').innerHTML =
+    (serial.suspicious_reasons || []).map(r => `<li>${r}</li>`).join('');
+
+  // microprint
+  const microprint = checks.microprint || {};
+  document.getElementById('microprintInfo').textContent =
+    `clarity score: ${(microprint.clarity_score || 0).toFixed(2)} — ${microprint.passed ? 'passed' : 'flagged'}`;
+  document.getElementById('microprintFlags').innerHTML =
+    (microprint.suspicious_flags || []).map(f => `<li>${f}</li>`).join('');
+
+  // security thread
+  const thread = checks.security_thread || {};
+  document.getElementById('threadInfo').textContent =
+    `continuity score: ${(thread.continuity_score || 0).toFixed(2)} — ${thread.present ? 'thread detected' : 'not detected'}`;
+  document.getElementById('threadFlags').innerHTML =
+    (thread.suspicious_flags || []).map(f => `<li>${f}</li>`).join('');
+
+  // annotated image
+  const annotatedImg = document.getElementById('annotatedImg');
+  if (data.annotated_image_url) {
+    annotatedImg.src = data.annotated_image_url;
+    annotatedImg.style.display = 'block';
+  } else {
+    annotatedImg.style.display = 'none';
+  }
+
+  // notes
+  const notesEl = document.getElementById('notesList');
+  notesEl.innerHTML = (data.notes || [])
+    .map(n => `<div class="disclaimer" style="margin-bottom:8px;">${n}</div>`)
+    .join('');
+}
+</script>
+
+</body>
+</html>

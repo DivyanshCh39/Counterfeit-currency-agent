@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>ROI Calibrator</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:#0f1115; color:#e6e8eb; margin:0; padding:20px; }
+  h1 { font-size:18px; margin:0 0 6px; }
+  p.hint { color:#9aa1ac; font-size:13px; margin:0 0 16px; }
+  #layout { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+  #canvasWrap { border:1px solid #262b35; border-radius:8px; overflow:auto; max-width:70vw; }
+  canvas { display:block; cursor:crosshair; }
+  #panel { min-width:280px; background:#171a21; border:1px solid #262b35; border-radius:8px; padding:16px; }
+  select, input, button { background:#0d0f13; color:#e6e8eb; border:1px solid #262b35; border-radius:6px; padding:6px 8px; font-size:13px; }
+  button { cursor:pointer; }
+  #output { white-space:pre; background:#0d0f13; border:1px solid #262b35; border-radius:6px; padding:10px; font-size:12px; margin-top:12px; max-height:300px; overflow:auto; }
+  table { width:100%; font-size:12px; border-collapse:collapse; margin-top:10px; }
+  td { padding:3px 4px; border-bottom:1px solid #262b35; }
+  .region-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .swatch { width:12px; height:12px; display:inline-block; border-radius:3px; margin-right:6px; }
+</style>
+</head>
+<body>
+
+<h1>ROI Calibrator (offline helper — not part of the running app)</h1>
+<p class="hint">
+  Load an ALIGNED note image (e.g. one saved under
+  data/sample_uploads/debug/&lt;tag&gt;/04_aligned.jpg, or any straightened
+  note photo). Pick a region below, then click-drag a rectangle on the image.
+  Repeat for each region. Copy the generated Python dict into
+  app/config/roi_config.py.
+</p>
+
+<div id="layout">
+  <div id="canvasWrap">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="panel">
+    <div>
+      <input type="file" id="fileInput" accept="image/*" />
+    </div>
+
+    <div style="margin-top:14px;">
+      <label for="regionSelect">Region to draw:</label><br/>
+      <select id="regionSelect" style="width:100%; margin-top:4px;">
+        <option value="serial_number">serial_number</option>
+        <option value="microprint">microprint</option>
+        <option value="security_thread">security_thread</option>
+        <option value="denomination_numeral">denomination_numeral</option>
+        <option value="promise_clause">promise_clause</option>
+      </select>
+    </div>
+
+    <div style="margin-top:14px;">
+      <label for="denomInput">Denomination label:</label><br/>
+      <input type="text" id="denomInput" value="500" style="width:100%; margin-top:4px;" />
+    </div>
+
+    <div id="regionList" style="margin-top:14px;"></div>
+
+    <button id="clearBtn" style="margin-top:10px; width:100%;">Clear all regions</button>
+
+    <div id="output"></div>
+    <button id="copyBtn" style="margin-top:8px; width:100%;">Copy Python dict</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const fileInput = document.getElementById('fileInput');
+const regionSelect = document.getElementById('regionSelect');
+const denomInput = document.getElementById('denomInput');
+const output = document.getElementById('output');
+const regionList = document.getElementById('regionList');
+const clearBtn = document.getElementById('clearBtn');
+const copyBtn = document.getElementById('copyBtn');
+
+const REGION_COLORS = {
+  serial_number: '#ff4d4d',
+  microprint: '#4dff88',
+  security_thread: '#4d88ff',
+  denomination_numeral: '#ff4dff',
+  promise_clause: '#ffb84d',
+};
+
+let img = null;
+let regions = {}; // name -> {x0,y0,x1,y1} in IMAGE pixel coords
+let dragging = false;
+let dragStart = null;
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    img = image;
+    canvas.width = img.width;
+    canvas.height = img.height;
+    redraw();
+  };
+  image.src = url;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!img) return;
+  dragging = true;
+  dragStart = getCanvasPos(e);
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!dragging || !img) return;
+  const pos = getCanvasPos(e);
+  const name = regionSelect.value;
+  regions[name] = normalizeBox(dragStart, pos);
+  redraw();
+});
+
+window.addEventListener('mouseup', () => {
+  if (dragging) {
+    dragging = false;
+    updateOutput();
+  }
+});
+
+clearBtn.addEventListener('click', () => {
+  regions = {};
+  redraw();
+  updateOutput();
+});
+
+copyBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(output.textContent);
+  copyBtn.textContent = 'Copied!';
+  setTimeout(() => (copyBtn.textContent = 'Copy Python dict'), 1200);
+});
+
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
+}
+
+function normalizeBox(a, b) {
+  return {
+    x0: Math.min(a.x, b.x),
+    y0: Math.min(a.y, b.y),
+    x1: Math.max(a.x, b.x),
+    y1: Math.max(a.y, b.y),
+  };
+}
+
+function redraw() {
+  if (!img) return;
+  ctx.drawImage(img, 0, 0);
+  Object.entries(regions).forEach(([name, box]) => {
+    ctx.strokeStyle = REGION_COLORS[name] || '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
+    ctx.fillStyle = REGION_COLORS[name] || '#ffffff';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(name, box.x0 + 2, Math.max(12, box.y0 - 4));
+  });
+  renderRegionList();
+}
+
+function renderRegionList() {
+  regionList.innerHTML = '';
+  Object.keys(REGION_COLORS).forEach((name) => {
+    const has = regions[name] != null;
+    const row = document.createElement('div');
+    row.className = 'region-row';
+    row.innerHTML = `
+      <span><span class="swatch" style="background:${REGION_COLORS[name]}"></span>${name}</span>
+      <span>${has ? '✓ drawn' : '— not drawn'}</span>`;
+    regionList.appendChild(row);
+  });
+}
+
+function updateOutput() {
+  if (!img) return;
+  const w = img.width;
+  const h = img.height;
+  const denom = denomInput.value.trim() || 'DEFAULT';
+
+  const lines = [`"${denom}": {`];
+  Object.entries(regions).forEach(([name, box]) => {
+    const fx0 = (box.x0 / w).toFixed(3);
+    const fy0 = (box.y0 / h).toFixed(3);
+    const fx1 = (box.x1 / w).toFixed(3);
+    const fy1 = (box.y1 / h).toFixed(3);
+    lines.push(`    "${name}": (${fx0}, ${fy0}, ${fx1}, ${fy1}),`);
+  });
+  lines.push('},');
+
+  output.textContent = lines.join('\n');
+}
+</script>
+
+</body>
+</html>
