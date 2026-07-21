@@ -7,6 +7,7 @@ Then open the demo UI at:
     http://localhost:8000/ui
 """
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -21,6 +22,13 @@ from app.routers import analyze_router, health_router, upload_router
 configure_logging(debug=settings.DEBUG)
 logger = get_logger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("%s v%s starting up.", settings.APP_NAME, settings.APP_VERSION)
+    yield
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -29,6 +37,7 @@ app = FastAPI(
         "'likely genuine', 'suspicious', or 'unclear'. "
         "ACADEMIC / DEMONSTRATION USE ONLY — not for legal-grade authentication."
     ),
+    lifespan=lifespan,
 )
 
 # CORS — permissive for local prototype use across web/mobile clients.
@@ -60,11 +69,6 @@ app.include_router(upload_router.router)
 app.include_router(analyze_router.router)
 
 _WEB_UI_INDEX = Path(__file__).resolve().parent.parent / "ui" / "web" / "index.html"
-
-
-@app.on_event("startup")
-def on_startup():
-    logger.info("%s v%s starting up.", settings.APP_NAME, settings.APP_VERSION)
 
 
 @app.get("/", include_in_schema=False)

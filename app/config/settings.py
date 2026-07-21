@@ -6,7 +6,7 @@ without touching service code.
 
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -161,9 +161,7 @@ class Settings(BaseSettings):
     # score above GENUINE_SCORE_THRESHOLD -> "likely genuine"
     # anything else, or failed quality gate -> "unclear"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
 settings = Settings()

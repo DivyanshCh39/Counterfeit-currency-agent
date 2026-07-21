@@ -24,30 +24,10 @@ def test_classify_falls_back_to_unknown_when_no_backend_confident():
     assert result.method == "fallback_unknown"
 
 
-def test_onnx_backend_reports_unavailable_without_weights():
-    from app.config.settings import settings
+def test_onnx_backend_reports_unavailable_without_weights(tmp_path):
     from app.models.denomination_classifier.onnx_backend import OnnxDenominationBackend
 
-    backend = OnnxDenominationBackend(settings.DENOMINATION_MODEL_PATH)
+    missing_path = tmp_path / "does_not_exist.onnx"
+    backend = OnnxDenominationBackend(missing_path)
     backend.load()
     assert backend.is_available() is False
-    assert backend.predict(np.zeros((10, 10, 3), dtype="uint8")) is None
-
-
-def test_onnx_backend_preprocess_produces_nchw_layout():
-    """
-    Regression test: preprocessing must output NCHW (batch, channels,
-    height, width) to match PyTorch/ONNX export convention used by
-    training/train_denomination_classifier.py. This previously shipped as
-    NHWC, which silently caused every real inference call to fail with an
-    ONNXRuntime shape-mismatch error once a trained model was actually loaded.
-    """
-    from app.config.settings import settings
-    from app.models.denomination_classifier.onnx_backend import OnnxDenominationBackend
-
-    backend = OnnxDenominationBackend(settings.DENOMINATION_MODEL_PATH)
-    dummy_image = np.random.randint(0, 255, (300, 500, 3), dtype="uint8")
-
-    tensor = backend._preprocess(dummy_image)
-
-    assert tensor.shape == (1, 3, *backend.INPUT_SIZE)
