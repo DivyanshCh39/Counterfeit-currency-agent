@@ -2,7 +2,7 @@
 
 A FastAPI backend that takes a photo of an Indian currency note and returns a verdict — likely genuine, suspicious, or unclear — along with a breakdown of the checks that led to it. Built as a hybrid system: a trained ONNX model handles denomination classification, OCR reads the serial number and printed text, and a rule-based scoring engine checks whether everything is internally consistent.
 
-This is a prototype built for academic evaluation, not a certified currency-authentication tool. There is no legally available dataset of genuine-vs-counterfeit note images, so "counterfeit detection" here means checking a note's own printed details against each other, not learning what a forged note looks like.
+This is a prototype built for academic evaluation, not a certified currency-authentication tool. Large-scale public datasets pairing genuine and counterfeit Indian currency images are not available for this use case, so "counterfeit detection" here means checking a note's own printed details against each other, not learning what a forged note looks like.
 
 ## Table of Contents
 1. [Problem Statement](#problem-statement)
@@ -20,7 +20,7 @@ This is a prototype built for academic evaluation, not a certified currency-auth
 
 Bank tellers and cashiers check notes by combining several small cues at once — serial number format, thread continuity, microprint sharpness, whether the printed denomination matches what the note claims to be. Doing this consistently at scale is hard, and low-cost fake-detector hardware usually does little beyond a UV check.
 
-Training a supervised genuine-vs-fake classifier isn't really an option here — there's no legal way to get a labeled dataset of real counterfeit notes. So this project takes a different approach: use a real trained model for the one thing that can be trained (denomination), and use explainable rules for everything else, cross-checking a note's own details for internal consistency rather than trying to spot forgery visually.
+Training a supervised genuine-vs-fake classifier isn't a practical option here — no large-scale, suitable public dataset of labeled counterfeit notes exists for this project's denominations. So this project takes a different approach: use a real trained model for the one thing that can be trained (denomination), and use explainable rules for everything else, cross-checking a note's own details for internal consistency rather than trying to spot forgery visually.
 
 ## Architecture
 
@@ -78,7 +78,7 @@ The dataset only labels denomination. It does not contain:
 - Region-of-interest ground truth (serial number / thread / microprint locations)
 - UV or IR imagery
 
-This is the main reason counterfeit screening in this project is rule-based instead of a second trained classifier — there's simply nothing to train a counterfeit detector on.
+This is the main reason counterfeit screening in this project is rule-based instead of a second trained classifier — no dataset suitable for training one was available for this project.
 
 **Current trained model:** 96.6% validation accuracy, 88.5% accuracy on a held-out test set never used during training or model selection.
 
@@ -159,4 +159,4 @@ To retrain the denomination classifier or the optional note-boundary segmenter, 
 - Train the note-boundary segmentation model (pipeline is built, just needs a training run)
 - Wire up the existing TFLite backend template for on-device mobile inference
 - Fine-tune OCR on actual currency fonts instead of general-purpose EasyOCR/Tesseract
-- If a labeled genuine/counterfeit dataset ever becomes available, replace the microprint and thread heuristics with trained scorers — currently blocked on data that doesn't exist, not on time
+- If a suitable labeled genuine/counterfeit dataset becomes available at usable scale, replace the microprint and thread heuristics with trained scorers — gated on data availability, not on time
